@@ -163,7 +163,8 @@ async def list_models(request: Request):
                 "headers": {
                     "Authorization": f"Bearer {token['token']}",
                     "Content-Type": "application/json",
-                    "editor-version": "vscode/1.96.4"
+                    "editor-version": "vscode/1.96.4",
+                    "User-Agent": "VSCode/1.96.4 (Windows_NT x64)"
                 }
             }
             if RECORD_TRAFFIC:
@@ -213,6 +214,7 @@ async def proxy_chat_completions(request: Request):
                         "Content-Type": "application/json",
                         "Accept": "text/event-stream",
                         "editor-version": "vscode/1.96.4",
+                        "User-Agent": "VSCode/1.96.4 (Windows_NT x64)",
                     },
                 }
                 if RECORD_TRAFFIC:

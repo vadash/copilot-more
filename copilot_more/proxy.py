@@ -49,6 +49,7 @@ class CopilotProxy:
     def request(self, flow: http.HTTPFlow) -> None:
         if self._is_copilot_request(flow.request.pretty_url):
             ctx.log.info(f"Captured request to: {flow.request.pretty_url}")
+            flow.request.headers["User-Agent"] = "VSCode/1.96.4 (Windows_NT x64)"
 
     def response(self, flow: http.HTTPFlow) -> None:
         if self._is_copilot_request(flow.request.pretty_url):

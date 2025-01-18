@@ -66,6 +66,7 @@ async def refresh_token() -> dict:
             headers={
                 "Authorization": "token " + (os.getenv("REFRESH_TOKEN") or ""),
                 "editor-version": "vscode/1.96.4",
+                "User-Agent": "VSCode/1.96.4 (Windows_NT x64)",
             },
         ) as response:
             if response.status == 200:
