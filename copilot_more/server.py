@@ -136,7 +136,7 @@ async def list_models():
                 "headers": {
                     "Authorization": f"Bearer {token['token']}",
                     "Content-Type": "application/json",
-                    "editor-version": "vscode/1.95.3"
+                    "editor-version": "vscode/1.96.4"
                 }
             }
             if RECORD_TRAFFIC:
@@ -184,7 +184,7 @@ async def proxy_chat_completions(request: Request):
                         "Authorization": f"Bearer {token['token']}",
                         "Content-Type": "application/json",
                         "Accept": "text/event-stream",
-                        "editor-version": "vscode/1.95.3",
+                        "editor-version": "vscode/1.96.4",
                     },
                 }
                 if RECORD_TRAFFIC:

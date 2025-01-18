@@ -65,7 +65,7 @@ async def refresh_token() -> dict:
             url="https://api.github.com/copilot_internal/v2/token",
             headers={
                 "Authorization": "token " + (os.getenv("REFRESH_TOKEN") or ""),
-                "editor-version": "vscode/1.95.3",
+                "editor-version": "vscode/1.96.4",
             },
         ) as response:
             if response.status == 200:
