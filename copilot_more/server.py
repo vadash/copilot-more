@@ -1,8 +1,10 @@
 import json
+import os
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from fastapi.responses import StreamingResponse
 
 from copilot_more.logger import logger
@@ -15,6 +17,30 @@ sanitizer = StringSanitizer()
 initialize_proxy()
 
 app = FastAPI()
+
+# API Key setup
+API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    logger.error("API_KEY environment variable is not set")
+    raise RuntimeError("API_KEY environment variable is not set")
+
+async def verify_api_key(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        logger.error("No Bearer token provided in Authorization header")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication. Bearer token required"
+        )
+    
+    api_key = auth_header.replace("Bearer ", "")
+    if api_key != API_KEY:
+        logger.error(f"Invalid API key provided. Received: {api_key}, Expected: {API_KEY}")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication"
+        )
+    return api_key
 
 app.add_middleware(
     CORSMiddleware,
@@ -124,7 +150,8 @@ async def create_client_session() -> ClientSession:
 
 
 @app.get("/models")
-async def list_models():
+async def list_models(request: Request):
+    await verify_api_key(request)
     """
     Proxies models request.
     """
@@ -156,6 +183,7 @@ async def list_models():
 
 @app.post("/chat/completions")
 async def proxy_chat_completions(request: Request):
+    await verify_api_key(request)
     """
     Proxies chat completion requests with SSE support.
     """
