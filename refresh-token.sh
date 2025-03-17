@@ -3,64 +3,87 @@
 # Client ID for the vscode copilot
 client_id="01ab8ac9400c4e429b23"
 
-# Retry configuration for initial request
-max_retries_initial=20
-retry_delay_initial=3
+# --- First curl with retry ---
+retry_count_first=5
+retry_interval_first=2 # seconds
+first_curl_success=false
 
-# Get the device code with retries
-response=""
-device_code=""
-user_code=""
-for ((i=1; i<=max_retries_initial; i++)); do
-    response=$(curl -s https://github.com/login/device/code -X POST -d "client_id=$client_id&scope=user:email")
-    if [ $? -eq 0 ] && [[ "$response" == *"device_code"* ]]; then
-        device_code=$(echo "$response" | grep -oE 'device_code=[^&]+' | cut -d '=' -f 2)
-        user_code=$(echo "$response" | grep -oE 'user_code=[^&]+' | cut -d '=' -f 2)
-        break
-    else
-        echo "Initial request failed (attempt $i/$max_retries_initial). Retrying in $retry_delay_initial seconds..."
-        sleep $retry_delay_initial
+echo "Requesting device and user codes..."
+
+for ((i=0; i<retry_count_first; i++)); do
+  response=$(curl -s https://github.com/login/device/code -X POST -d "client_id=$client_id&scope=user:email")
+
+  if echo "$response" | grep -q "device_code=" && echo "$response" | grep -q "user_code="; then
+    device_code=$(echo "$response" | grep -oE 'device_code=[^&]+' | cut -d '=' -f 2)
+    user_code=$(echo "$response" | grep -oE 'user_code=[^&]+' | cut -d '=' -f 2)
+    verification_uri=$(echo "$response" | grep -oE 'verification_uri=[^&]+' | cut -d '=' -f 2 | sed 's/%3A/:/g' | sed 's/%2F/\//g') # Decode URL encoding
+    interval=$(echo "$response" | grep -oE 'interval=[^&]+' | cut -d '=' -f 2)
+
+    if [ -n "$device_code" ] && [ -n "$user_code" ]; then
+      echo "Please open $verification_uri and enter the following code: $user_code"
+      echo "Waiting for authorization..."
+      first_curl_success=true
+      break
     fi
+  else
+    echo "Failed to get device and user codes. Retry attempt $((i+1)) of $retry_count_first..."
+    if [ -n "$response" ]; then
+      echo "Response was: $response"
+    else
+      echo "No response received."
+    fi
+  fi
+  sleep $retry_interval_first
 done
 
-if [ -z "$device_code" ]; then
-    echo "Failed to get device code after $max_retries_initial attempts. Exiting."
-    exit 1
+if ! $first_curl_success; then
+  echo "Failed to get device and user codes after $retry_count_first attempts. Exiting."
+  exit 1
 fi
 
-# Show user instructions
-echo "Please open https://github.com/login/device/ and enter the following code: $user_code"
-echo "Waiting for authorization..."
+# --- User authorization prompt ---
+read -p "Press Enter once you have authorized the application..."
 
-# Retry configuration for access token
-max_retries_access=20
-retry_delay_access=3
-
-# Get access token with retries
+# --- Second curl with retry ---
+retry_count_second=10
+retry_interval_second=${interval:-5} # Use interval from first response or default to 5 seconds
+second_curl_success=false
 access_token=""
-for ((i=1; i<=max_retries_access; i++)); do
-    response_access_token=$(curl -s https://github.com/login/oauth/access_token -X POST -d "client_id=$client_id&scope=user:email&device_code=$device_code&grant_type=urn:ietf:params:oauth:grant-type:device_code")
-    
-    if [ $? -eq 0 ]; then
-        if [[ "$response_access_token" == *"access_token"* ]]; then
-            access_token=$(echo "$response_access_token" | grep -oE 'access_token=[^&]+' | cut -d '=' -f 2)
-            break
-        else
-            echo "Authorization pending (attempt $i/$max_retries_access). Retrying in $retry_delay_access seconds..."
-        fi
-    else
-        echo "Network error (attempt $i/$max_retries_access). Retrying in $retry_delay_access seconds..."
+
+echo "Requesting access token..."
+
+for ((i=0; i<retry_count_second; i++)); do
+  response_access_token=$(curl -s https://github.com/login/oauth/access_token -X POST -d "client_id=$client_id&scope=user:email&device_code=$device_code&grant_type=urn:ietf:params:oauth:grant-type:device_code")
+
+  if echo "$response_access_token" | grep -q "access_token="; then
+    access_token=$(echo "$response_access_token" | grep -oE 'access_token=[^&]+' | cut -d '=' -f 2)
+    if [ -n "$access_token" ]; then
+      echo "Successfully obtained access token."
+      second_curl_success=true
+      break
     fi
-    sleep $retry_delay_access
+  else
+    echo "Failed to get access token. Retry attempt $((i+1)) of $retry_count_second..."
+    if [ -n "$response_access_token" ]; then
+      echo "Response was: $response_access_token"
+    else
+      echo "No response received."
+    fi
+  fi
+  sleep $retry_interval_second
 done
 
-if [ -z "$access_token" ]; then
-    echo "Failed to get access token after $max_retries_access attempts. Exiting."
-    exit 1
+if ! $second_curl_success; then
+  echo "Failed to get access token after $retry_count_second attempts. Exiting."
+  exit 1
 fi
 
-# Success output
+# --- Print the access token and instructions ---
 echo "Your access token is: $access_token"
 echo "Run the app with the following command:"
 echo "REFRESH_TOKEN=$access_token" > .env
 echo "REFRESH_TOKEN=$access_token poetry run uvicorn copilot_more.server:app --port 15432"
+
+echo "Script finished."
+
+exit 0
